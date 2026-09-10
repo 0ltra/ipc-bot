@@ -28,6 +28,7 @@ async def on_ready():
     await load_cogs()
     try:
         guild = discord.Object(id=TEST_GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:  # noqa: BLE001
