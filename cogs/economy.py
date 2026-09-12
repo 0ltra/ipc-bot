@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime, timedelta
 
 import asyncpg
@@ -134,6 +135,64 @@ class Economy(commands.Cog):
 
         await interaction.response.send_message(
             f"✅ Sent **{amount}** credits to {user.mention}."
+        )
+
+    @app_commands.command(
+        name="gamble",
+        description="Roll the Gaiathra Dice and risk your credits",
+    )
+    @app_commands.describe(amount="How many credits to wager")
+    async def gamble(self, interaction: discord.Interaction, amount: int):
+        user_id = interaction.user.id
+
+        if amount <= 0:
+            await interaction.response.send_message(
+                "⚠️ Wager must be greater than 0.", ephemeral=True
+            )
+            return
+
+        balance = await self.get_or_create_user(user_id)
+
+        if balance < amount:
+            await interaction.response.send_message(
+                f"⚠️ Insufficient funds. You have **{balance}** credits.",
+                ephemeral=True,
+            )
+            return
+
+        roll = random.randint(1, 100)
+
+        if roll <= 45:
+            # Loss
+            outcome = -amount
+            message = (
+                f"🎲 The Gaiathra Dice roll **{roll}**. Luck wasn't on your side — "
+                f"you lost **{amount}** credits."
+            )
+        elif roll <= 90:
+            # Win 1:1
+            outcome = amount
+            message = (
+                f"🎲 The Gaiathra Dice roll **{roll}**. Fortune favors you — "
+                f"you won **{amount}** credits!"
+            )
+        else:
+            # Rare jackpot, 3x payout
+            outcome = amount * 3
+            message = (
+                f"🎲 The Gaiathra Dice roll **{roll}**. JACKPOT — "
+                f"Aventurine himself would be proud. You won **{outcome}** credits!"
+            )
+
+        async with self.pool.acquire() as conn:
+            new_balance = await conn.fetchval(
+                "UPDATE users SET balance = balance + $1 WHERE user_id = $2 RETURNING balance",
+                outcome,
+                user_id,
+            )
+
+        await interaction.response.send_message(
+            f"{message}\nNew balance: **{new_balance}**."
         )
 
 
