@@ -50,7 +50,7 @@ class Economy(commands.Cog):
             )
             last_daily = row["last_daily"]
 
-            now = datetime.utcnow()
+            now = datetime.utcnow()  # noqa: DTZ003
 
             if last_daily is not None:
                 elapsed = now - last_daily
@@ -82,6 +82,59 @@ class Economy(commands.Cog):
                 f"💰 The IPC has deposited **{reward}** credits into your account. "
                 f"New balance: **{new_balance}**."
             )
+
+    @app_commands.command(name="give", description="Transfer credits to another user")
+    @app_commands.describe(
+        user="Who to send credits to", amount="How many credits to send"
+    )
+    async def give(
+        self, interaction: discord.Interaction, user: discord.Member, amount: int
+    ):
+        sender_id = interaction.user.id
+        recipient_id = user.id
+
+        if amount <= 0:
+            await interaction.response.send_message(
+                "⚠️ Amount must be greater than 0.", ephemeral=True
+            )
+            return
+
+        if recipient_id == sender_id:
+            await interaction.response.send_message(
+                "⚠️ You can't send credits to yourself.", ephemeral=True
+            )
+            return
+
+        await self.get_or_create_user(sender_id)
+        await self.get_or_create_user(recipient_id)
+
+        async with self.pool.acquire() as conn, conn.transaction():
+            sender_balance = await conn.fetchval(
+                "SELECT balance FROM users WHERE user_id = $1 FOR UPDATE",
+                sender_id,
+            )
+
+            if sender_balance < amount:
+                await interaction.response.send_message(
+                    f"⚠️ Insufficient funds. You have **{sender_balance}** credits.",
+                    ephemeral=True,
+                )
+                return
+
+            await conn.execute(
+                "UPDATE users SET balance = balance - $1 WHERE user_id = $2",
+                amount,
+                sender_id,
+            )
+            await conn.execute(
+                "UPDATE users SET balance = balance + $1 WHERE user_id = $2",
+                amount,
+                recipient_id,
+            )
+
+        await interaction.response.send_message(
+            f"✅ Sent **{amount}** credits to {user.mention}."
+        )
 
 
 async def setup(bot):
