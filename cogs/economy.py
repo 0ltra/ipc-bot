@@ -195,6 +195,33 @@ class Economy(commands.Cog):
             f"{message}\nNew balance: **{new_balance}**."
         )
 
+    @app_commands.command(name="leaderboard", description="View the top IPC investors")
+    async def leaderboard(self, interaction: discord.Interaction):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id, balance FROM users ORDER BY balance DESC LIMIT 10"
+            )
+
+        if not rows:
+            await interaction.response.send_message("No IPC investors yet.")
+            return
+
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for i, row in enumerate(rows):
+            prefix = medals[i] if i < 3 else f"{i + 1}."
+            user = self.bot.get_user(row["user_id"])
+            name = user.display_name if user else f"User {row['user_id']}"
+            lines.append(f"{prefix} **{name}** — {row['balance']} credits")
+
+        embed = discord.Embed(
+            title="💼 IPC Investor Leaderboard",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
+
+        await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
