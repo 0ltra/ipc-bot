@@ -77,20 +77,6 @@ pytest
 
 Currently covers the blackjack hand-value logic, including ace handling (aces count as 11 unless that would bust the hand, in which case they drop to 1 — the trickiest part of blackjack scoring to get right).
 
-## Project structure
-
-ipc-bot/
-├── main.py # bot entry point, cog loading, command sync
-├── cogs/
-│ ├── economy.py # balance, daily, work, weekly, give, leaderboard
-│ └── blackjack.py # the blackjack game + interactive buttons
-├── tests/
-│ └── test_blackjack.py
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-
-
 ## Notes
 
 - Slash commands sync per-guild during development for instant updates; swap to a global sync before deploying anywhere permanent.
