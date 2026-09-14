@@ -32,6 +32,57 @@ class Economy(commands.Cog):
                 return 0
             return row["balance"]
 
+    async def claim_reward(
+        self,
+        user_id: int,
+        column: str,
+        cooldown: timedelta,
+        reward_min: int,
+        reward_max: int,
+    ):
+        """Generic cooldown-based reward claim. Returns (success, message, new_balance_or_None)."""
+        await self.get_or_create_user(user_id)
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f"SELECT {column} FROM users WHERE user_id = $1", user_id
+            )
+            if row is None:
+                return False, "User not found", None
+
+            last_claim = row[column]
+            now = datetime.utcnow()  # noqa: DTZ003
+
+            if last_claim is not None:
+                elapsed = now - last_claim
+                if elapsed < cooldown:
+                    remaining = cooldown - elapsed
+                    days, rem = divmod(int(remaining.total_seconds()), 86400)
+                    hours, rem = divmod(rem, 3600)
+                    minutes = rem // 60
+                    parts = []
+                    if days:
+                        parts.append(f"{days}d")
+                    if hours:
+                        parts.append(f"{hours}h")
+                    parts.append(f"{minutes}m")
+                    return False, " ".join(parts), None
+
+            reward = random.randint(reward_min, reward_max)
+            new_balance = await conn.fetchval(
+                f"""
+                UPDATE users
+                SET balance = balance + $1, {column} = $2
+                WHERE user_id = $3
+                RETURNING balance
+                """,
+                reward,
+                now,
+                user_id,
+            )
+            return True, reward, new_balance
+
+    # Check Balances
     @app_commands.command(name="balance", description="Check your IPC credit balance")
     async def balance(self, interaction: discord.Interaction):
         bal = await self.get_or_create_user(interaction.user.id)
@@ -41,48 +92,60 @@ class Economy(commands.Cog):
 
     @app_commands.command(name="daily", description="Claim your daily IPC stipend")
     async def daily(self, interaction: discord.Interaction):
-        user_id = interaction.user.id
-        async with self.pool.acquire() as conn:
-            # Make sure the user exists first
-            await self.get_or_create_user(user_id)
-
-            row = await conn.fetchrow(
-                "SELECT last_daily FROM users WHERE user_id = $1", user_id
-            )
-            last_daily = row["last_daily"]
-
-            now = datetime.utcnow()  # noqa: DTZ003
-
-            if last_daily is not None:
-                elapsed = now - last_daily
-                if elapsed < timedelta(hours=24):
-                    remaining = timedelta(hours=24) - elapsed
-                    hours, remainder = divmod(int(remaining.total_seconds()), 3600)
-                    minutes = remainder // 60
-                    await interaction.response.send_message(
-                        f"⏳ You've already claimed your stipend. "
-                        f"Try again in {hours}h {minutes}m.",
-                        ephemeral=True,
-                    )
-                    return
-
-            reward = 100  # flat daily amount for now
-            new_balance = await conn.fetchval(
-                """
-                UPDATE users
-                SET balance = balance + $1, last_daily = $2
-                WHERE user_id = $3
-                RETURNING balance
-                """,
-                reward,
-                now,
-                user_id,
-            )
-
+        success, result, new_balance = await self.claim_reward(
+            interaction.user.id, "last_daily", timedelta(hours=24), 80, 120
+        )
+        if not success:
             await interaction.response.send_message(
-                f"💰 The IPC has deposited **{reward}** credits into your account. "
-                f"New balance: **{new_balance}**."
+                f"⏳ You've already claimed your stipend. Try again in {result}.",
+                ephemeral=True,
             )
+            return
+        await interaction.response.send_message(
+            f"💰 The IPC has deposited **{result}** credits into your account. "
+            f"New balance: **{new_balance}**."
+        )
+
+    @app_commands.command(name="weekly", description="Claim your weekly IPC dividend")
+    async def weekly(self, interaction: discord.Interaction):
+        success, result, new_balance = await self.claim_reward(
+            interaction.user.id, "last_weekly", timedelta(days=7), 500, 800
+        )
+        if not success:
+            await interaction.response.send_message(
+                f"⏳ Dividends already claimed this cycle. Try again in {result}.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"📈 Your IPC stock dividend has paid out **{result}** credits. "
+            f"New balance: **{new_balance}**."
+        )
+
+    @app_commands.command(name="work", description="Do a job for the IPC")
+    async def work(self, interaction: discord.Interaction):
+        success, result, new_balance = await self.claim_reward(
+            interaction.user.id, "last_work", timedelta(hours=1), 20, 50
+        )
+        if not success:
+            await interaction.response.send_message(
+                f"⏳ You're still on the clock. Try again in {result}.",
+                ephemeral=True,
+            )
+            return
+
+        flavor = random.choice(
+            [
+                "audited a shell corporation",
+                "closed a deal on Penacony",
+                "laundered credits through the Strife Ruin Engine",
+                "brokered a stock trade for the Family",
+            ]
+        )
+        await interaction.response.send_message(
+            f"🧧 You {flavor} and earned **{result}** credits. "
+            f"New balance: **{new_balance}**."
+        )
 
     @app_commands.command(name="give", description="Transfer credits to another user")
     @app_commands.describe(
@@ -137,64 +200,7 @@ class Economy(commands.Cog):
             f"✅ Sent **{amount}** credits to {user.mention}."
         )
 
-    @app_commands.command(
-        name="gamble",
-        description="Roll the Gaiathra Dice and risk your credits",
-    )
-    @app_commands.describe(amount="How many credits to wager")
-    async def gamble(self, interaction: discord.Interaction, amount: int):
-        user_id = interaction.user.id
-
-        if amount <= 0:
-            await interaction.response.send_message(
-                "⚠️ Wager must be greater than 0.", ephemeral=True
-            )
-            return
-
-        balance = await self.get_or_create_user(user_id)
-
-        if balance < amount:
-            await interaction.response.send_message(
-                f"⚠️ Insufficient funds. You have **{balance}** credits.",
-                ephemeral=True,
-            )
-            return
-
-        roll = random.randint(1, 100)
-
-        if roll <= 45:
-            # Loss
-            outcome = -amount
-            message = (
-                f"🎲 The Gaiathra Dice roll **{roll}**. Luck wasn't on your side — "
-                f"you lost **{amount}** credits."
-            )
-        elif roll <= 90:
-            # Win 1:1
-            outcome = amount
-            message = (
-                f"🎲 The Gaiathra Dice roll **{roll}**. Fortune favors you — "
-                f"you won **{amount}** credits!"
-            )
-        else:
-            # Rare jackpot, 3x payout
-            outcome = amount * 3
-            message = (
-                f"🎲 The Gaiathra Dice roll **{roll}**. JACKPOT — "
-                f"Aventurine himself would be proud. You won **{outcome}** credits!"
-            )
-
-        async with self.pool.acquire() as conn:
-            new_balance = await conn.fetchval(
-                "UPDATE users SET balance = balance + $1 WHERE user_id = $2 RETURNING balance",
-                outcome,
-                user_id,
-            )
-
-        await interaction.response.send_message(
-            f"{message}\nNew balance: **{new_balance}**."
-        )
-
+    # Leaderboard command
     @app_commands.command(name="leaderboard", description="View the top IPC investors")
     async def leaderboard(self, interaction: discord.Interaction):
         async with self.pool.acquire() as conn:
