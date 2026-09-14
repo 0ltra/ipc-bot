@@ -1,3 +1,5 @@
+# IPC Bot
+
 A Discord economy bot themed around the Astral Express's favorite gambler, Aventurine, and the Interastral Peace Corporation. Earn credits, gamble them away, and see who's climbing the corporate ladder.
 
 ## What it does
