@@ -1,6 +1,6 @@
 # Ultranomics
 
-A Discord economy bot inspired around the Astral Express's favorite gambler, Aventurine, and the Interastral Peace Corporation. Earn credits, gamble them away, and see who's climbing the corporate ladder.
+A Discord economy bot
 
 ## What it does
 
@@ -27,8 +27,8 @@ This started as a simple `/balance` command and grew into a full economy system:
 You'll need Python 3.9+ and a Discord bot token ([create one here](https://discord.com/developers/applications)).
 
 ```bash
-git clone https://github.com/yourusername/ipc-bot.git
-cd ipc-bot
+git clone https://github.com/yourusername/ultranomics.git
+cd ultranomics
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -79,7 +79,9 @@ pytest
 
 Currently covers the blackjack hand-value logic, including ace handling (aces count as 11 unless that would bust the hand, in which case they drop to 1 — the trickiest part of blackjack scoring to get right).
 
+
 ## Notes
 
 - Slash commands sync per-guild during development for instant updates; swap to a global sync before deploying anywhere permanent.
 - The `/blackjack` payout for a natural blackjack (21 on the deal) is 1.5x the bet, same as standard casino rules.
+- Database and internal container names still reference "ipcbot" — purely cosmetic leftovers from before the rename, no functional impact.
