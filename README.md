@@ -1,6 +1,6 @@
-# IPC Bot
+# Ultranomics
 
-A Discord economy bot themed around the Astral Express's favorite gambler, Aventurine, and the Interastral Peace Corporation. Earn credits, gamble them away, and see who's climbing the corporate ladder.
+A Discord economy bot inspired around the Astral Express's favorite gambler, Aventurine, and the Interastral Peace Corporation. Earn credits, gamble them away, and see who's climbing the corporate ladder.
 
 ## What it does
 
@@ -43,8 +43,8 @@ DATABASE_URL=postgresql://localhost/ipcbot
 You'll need Postgres running locally with a database and table set up:
 
 ```bash
-createdb ipcbot
-psql ipcbot -c "
+createdb ultranomics
+psql ultranomics -c "
 CREATE TABLE users (
     user_id BIGINT PRIMARY KEY,
     balance INTEGER NOT NULL DEFAULT 0,
