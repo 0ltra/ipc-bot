@@ -43,8 +43,8 @@ DATABASE_URL=postgresql://localhost/ipcbot
 You'll need Postgres running locally with a database and table set up:
 
 ```bash
-createdb ultranomics
-psql ultranomics -c "
+createdb ipcbot
+psql ipcbot -c "
 CREATE TABLE users (
     user_id BIGINT PRIMARY KEY,
     balance INTEGER NOT NULL DEFAULT 0,
